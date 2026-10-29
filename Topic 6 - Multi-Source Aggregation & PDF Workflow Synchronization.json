@@ -1,0 +1,305 @@
+{
+  "name": "Topic 6 - Multi-Source Aggregation & PDF Workflow Synchronization",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "18b2ea1b-dc79-4474-9b08-239d06fe2d9f",
+      "name": "Manual_Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n{\njson: {\ncustomerId: \"CUST-101\",\ncompanyName: \"Acme Industrial\",\naccountTier: \"Enterprise Platinum\",\nindustry: \"Manufacturing\"\n}\n},\n{\njson: {\ncustomerId: \"CUST-102\",\ncompanyName: \"Beta HealthTech\",\naccountTier: \"Standard\",\nindustry: \"Healthcare\"\n}\n}\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -144
+      ],
+      "id": "9eb6ee26-fb0a-41de-adfd-858acf32012f",
+      "name": "Code_MockCRMData"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nreturn [\n  {\n    json: {\n      customerId: \"CUST-101\",\n      transactionId: \"TX-901\",\n      revenue: 14500.00,\n      status: \"PAID\"\n    }\n  },\n  {\n    json: {\n      customerId: \"CUST-101\",\n      transactionId: \"TX-902\",\n      revenue: 3200.50,\n      status: \"PAID\"\n    }\n  },\n  {\n    json: {\n      customerId: \"CUST-102\",\n      transactionId: \"TX-903\",\n      revenue: 4800.00,\n      status: \"PAID\"\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "3796bedd-a8f0-4185-a930-62cb50631ff0",
+      "name": "Code_MockSQLData"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const invoicePdfText =\n`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> endobj\n4 0 obj << /Length 210 >> stream\nBT\n/F1 12 Tf\n72 700 Td (EXPENSE REPORT: EXP-2026-OCT) Tj\n0 -25 Td (CUSTOMER_ID: CUST-101 | EXPENSE_AMOUNT: 3450.00 | CATEGORY: Cloud Infrastructure) Tj\n0 -25 Td (CUSTOMER_ID: CUST-102 | EXPENSE_AMOUNT: 1200.00 | CATEGORY: API Licensing) Tj\nET\nendstream endobj\n5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\nxref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000244 00000 n\n0000000505 00000 n\ntrailer << /Size 6 /Root 1 0 R >>\nstartxref\n582\n%%EOF`;\nreturn {\njson: { fileName: \"october_expenses.pdf\" },\nbinary: {\ndata: {\ndata: Buffer.from(invoicePdfText).toString('base64'),\nmimeType: \"application/pdf\",\nfileName: \"october_expenses.pdf\"\n}\n}\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        176
+      ],
+      "id": "80a3b6b7-56ba-45ac-bfd1-13cf74f0d581",
+      "name": "Code_SimulatePDFInvoice"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        176
+      ],
+      "id": "b6c22267-e8b7-433b-a688-4bfd1ce497a9",
+      "name": "Extract_PDF_Invoice"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.item.json.text || \"\";\nconst regex = /CUSTOMER_ID:\\s*(CUST-[0-9]+)\\s*\\|\\s*EXPENSE_AMOUNT:\\s*([0-9.]+)\\s*\\|\\s*CATEGORY:\\s*([^\\r\\n]+)/gi;\nconst expenses = [];\nlet match;\nwhile ((match = regex.exec(text)) !== null) {\nexpenses.push({\ncustomerId: match[1].trim(),\nexpenseAmount: parseFloat(match[2]),\ncategory: match[3].trim()\n});\n}\nreturn expenses.map(e => ({ json: e }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        176
+      ],
+      "id": "d6f4551f-5990-4610-954b-ee0ac1355350",
+      "name": "Transform_ParseExpenses"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "customerId",
+              "field2": "customerId"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        736,
+        -128
+      ],
+      "id": "2de82307-069c-4be1-85c1-9d31b7cbe559",
+      "name": "Merge_CRM_With_SQL"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "customerId",
+              "field2": "customerId"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1040,
+        16
+      ],
+      "id": "dbe89a37-2284-4fa0-940a-c220bed1045e",
+      "name": "Merge_With_PDFExpenses"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const item = $input.item.json;\nconst revenue = Number(item.revenue || 0);\nconst expense = Number(item.expenseAmount || 0);\nconst netProfit = Number((revenue - expense).toFixed(2));\nconst profitMargin = revenue > 0 ? Number(((netProfit / revenue) * 100).toFixed(1)) : 0;\nreturn {\njson: {\ncustomerId: item.customerId,\ncompanyName: item.companyName,\naccountTier: item.accountTier,\nindustry: item.industry,\nfinancialSummary: {\ntotalRevenue: revenue,\ntotalExpenses: expense,\nnetProfit: netProfit,\nprofitMarginPercent: profitMargin\n},\nsynchronizedAt: new Date().toISOString()\n}\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        64
+      ],
+      "id": "30032087-08cb-49f2-a145-466e2230b67d",
+      "name": "Transform_ComputeCustomer360"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.tayanasolutions.com/webhook/mock/topic6/warehouse/customer360",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1456,
+        64
+      ],
+      "id": "d07787b7-4812-4d2d-a9e9-182df86313cb",
+      "name": "HTTP_PostToWarehouse",
+      "retryOnFail": true,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nreturn [{\njson: {\nwarehouseSyncStatus: \"SUCCESS\",\ntotalCustomerProfilesSynced: items.length,\ncompletedAt: new Date().toISOString()\n}\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        64
+      ],
+      "id": "c87dea3e-ea52-443c-9973-7cdc75bc8485",
+      "name": "Code_AuditSummary"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual_Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code_MockCRMData",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code_MockSQLData",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code_SimulatePDFInvoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_SimulatePDFInvoice": {
+      "main": [
+        [
+          {
+            "node": "Extract_PDF_Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract_PDF_Invoice": {
+      "main": [
+        [
+          {
+            "node": "Transform_ParseExpenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_MockCRMData": {
+      "main": [
+        [
+          {
+            "node": "Merge_CRM_With_SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code_MockSQLData": {
+      "main": [
+        [
+          {
+            "node": "Merge_CRM_With_SQL",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Merge_With_PDFExpenses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform_ParseExpenses": {
+      "main": [
+        [
+          {
+            "node": "Merge_With_PDFExpenses",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge_With_PDFExpenses": {
+      "main": [
+        [
+          {
+            "node": "Transform_ComputeCustomer360",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform_ComputeCustomer360": {
+      "main": [
+        [
+          {
+            "node": "HTTP_PostToWarehouse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP_PostToWarehouse": {
+      "main": [
+        [
+          {
+            "node": "Code_AuditSummary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a5efd2f4-cb17-4ca9-96ee-131771723cef",
+  "meta": {
+    "instanceId": "a03c7678428ef19ededbf912f16f7d5798ec7b9ab4c17f2a2def6a9e791e7215"
+  },
+  "nodeGroups": [],
+  "id": "73OronLdqlXkQ40k",
+  "tags": []
+}
